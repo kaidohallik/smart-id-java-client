@@ -32,7 +32,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.InetSocketAddress;
 import java.net.URI;
+import java.net.URLDecoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -44,11 +46,15 @@ import java.security.cert.CertificateException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Nested;
@@ -117,6 +123,8 @@ public class ReadmeIntegrationTest {
 
     private static final Pattern NUMERIC_PATTERN = Pattern.compile("^[0-9]{4}$");
 
+    private static final String CALLBACK_PATH = "/callback";
+
     private SmartIdClient smartIdClient;
 
     @BeforeEach
@@ -136,10 +144,22 @@ public class ReadmeIntegrationTest {
         @Nested
         class Authentication {
 
-            @Disabled("Testing with App2App and Web2App is not possible at the moment")
+            /**
+             * App2App and Web2App flows are using callbackUrl
+             * For callback capture ngrok can be used, this test is showcase for using ngrok:
+             * <ul>
+             *     <li>ngrok must be installed</li>
+             *     <li>ngrok must be running: <code>ngrok http NGROK_LOCAL_PORT</code></li>
+             *     <li>environment variable <code>NGROK_LOCAL_PORT</code> must be set to used port</li>
+             *     <li>environment variable <code>NGROK_BASE_URL</code> must be set to ngrok forwarding URL</li>
+             * </ul>
+             */
             @ParameterizedTest
             @EnumSource(value = DeviceLinkType.class, names = {"APP_2_APP", "WEB_2_APP"})
             void anonymousAuthentication_with_App2App_or_Web2App(DeviceLinkType deviceLinkType) throws IOException, InterruptedException {
+                String callbackBaseUrl = System.getenv("NGROK_BASE_URL") + CALLBACK_PATH;
+                int callbackListenerPort = Integer.parseInt(System.getenv("NGROK_LOCAL_PORT"));
+
                 // For security reasons a new hash value must be created for each new authentication request
                 String rpChallenge = RpChallengeGenerator.generate().toBase64EncodedValue();
                 // Store generated rpChallenge only on backend side. Do not expose it to the client side.
@@ -148,7 +168,9 @@ public class ReadmeIntegrationTest {
                 // Create initial callback URL.
                 // Store the url-token only on backend side. Do not expose it to the client side.
                 // The url-token will be used to validate the callback request received from Smart-ID API
-                CallbackUrl callbackUrl = CallbackUrlUtil.createCallbackUrl("https://example.com/callback");
+                CallbackUrl callbackUrl = CallbackUrlUtil.createCallbackUrl(callbackBaseUrl);
+                CallbackReceiver callbackReceiver = new CallbackReceiver(callbackListenerPort);
+                callbackReceiver.start();
 
                 // Setup builder
                 DeviceLinkAuthenticationSessionRequestBuilder builder = smartIdClient
@@ -208,15 +230,19 @@ public class ReadmeIntegrationTest {
                 // Check that the session has completed successfully
                 assertEquals("COMPLETE", sessionStatus.getState());
 
-                // Receive callback from Smart-ID API
-                // Extract query parameters from the callback URL received
-                Map<String, String> queryParameters = Map.of("value", callbackUrl.urlToken(), "sessionSecretDigest", "asdjlaksdjklf", "userChallengeVerifier", "abachdfajklsfa");
+                URI callbackUri;
+                try {
+                    callbackUri = callbackReceiver.awaitCallback(Duration.ofSeconds(20));
+                } finally {
+                    callbackReceiver.stop();
+                }
+                Map<String, String> callbackQueryParameters = parseQueryParameters(callbackUri);
 
                 // Validate there is active user session in the application with matching url-token
-                String tokenInUrl = queryParameters.get("value");
+                assertEquals(callbackUrl.urlToken(), callbackQueryParameters.get("value"));
 
                 // Validate that sessionSecretDigest in the callback URL validates against sessionSecret from the init session response
-                CallbackUrlUtil.validateSessionSecretDigest(queryParameters.get("sessionSecretDigest"), sessionSecret);
+                CallbackUrlUtil.validateSessionSecretDigest(callbackQueryParameters.get("sessionSecretDigest"), sessionSecret);
 
                 // Set up AuthenticationResponseValidator
                 TrustedCACertStore trustedCACertStore = new FileTrustedCAStoreBuilder().build();
@@ -226,7 +252,7 @@ public class ReadmeIntegrationTest {
                 AuthenticationIdentity authenticationIdentity = deviceLinkAuthenticationResponseValidator.validate(
                         sessionStatus,
                         builder.getAuthenticationSessionRequest(),
-                        queryParameters.get("userChallengeVerifier"),
+                        callbackQueryParameters.get("userChallengeVerifier"),
                         "smart-id-demo");
 
                 assertEquals("40404040009", authenticationIdentity.getIdentityCode());
@@ -1067,6 +1093,55 @@ public class ReadmeIntegrationTest {
             return keyStore;
         } catch (IOException | CertificateException | KeyStoreException | NoSuchAlgorithmException e) {
             throw new RuntimeException("Cannot find demo truststore", e);
+        }
+    }
+
+    private static Map<String, String> parseQueryParameters(URI callbackUri) {
+        String rawQuery = callbackUri.getRawQuery();
+        Map<String, String> queryParameters = new HashMap<>();
+        if (rawQuery == null || rawQuery.isBlank()) {
+            return queryParameters;
+        }
+        for (String pair : rawQuery.split("&")) {
+            String[] keyValue = pair.split("=", 2);
+            String key = URLDecoder.decode(keyValue[0], StandardCharsets.UTF_8);
+            String value = keyValue.length == 2 ? URLDecoder.decode(keyValue[1], StandardCharsets.UTF_8) : "";
+            queryParameters.put(key, value);
+        }
+        return queryParameters;
+    }
+
+    private static final class CallbackReceiver {
+        private final HttpServer server;
+        private final CountDownLatch latch = new CountDownLatch(1);
+        private volatile URI callbackUri;
+
+        private CallbackReceiver(int port) throws IOException {
+            this.server = HttpServer.create(new InetSocketAddress("127.0.0.1", port), 0);
+            this.server.createContext(CALLBACK_PATH, exchange -> {
+                callbackUri = exchange.getRequestURI();
+                logger.debug("Callback URL called: {}", callbackUri.toString());
+                latch.countDown();
+                byte[] body = "OK".getBytes(StandardCharsets.UTF_8);
+                exchange.sendResponseHeaders(200, body.length);
+                exchange.getResponseBody().write(body);
+                exchange.close();
+            });
+        }
+
+        private void start() {
+            server.start();
+        }
+
+        private void stop() {
+            server.stop(0);
+        }
+
+        private URI awaitCallback(Duration timeout) throws InterruptedException {
+            if (!latch.await(timeout.toMillis(), TimeUnit.MILLISECONDS)) {
+                throw new RuntimeException("Timed out waiting for callback URL from Smart-ID mock");
+            }
+            return callbackUri;
         }
     }
 }
