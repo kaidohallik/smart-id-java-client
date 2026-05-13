@@ -4,7 +4,7 @@ package ee.sk.smartid.exception.useraccount;
  * #%L
  * Smart ID sample Java client
  * %%
- * Copyright (C) 2018 - 2025 SK ID Solutions AS
+ * Copyright (C) 2018 - 2026 SK ID Solutions AS
  * %%
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,10 +26,12 @@ package ee.sk.smartid.exception.useraccount;
  * #L%
  */
 
+import ee.sk.smartid.exception.UserAccountException;
+
 /**
  * Thrown when session status end result is DOCUMENT_UNUSABLE.
  */
-public class DocumentUnusableException extends PersonShouldViewSmartIdPortalException {
+public class DocumentUnusableException extends UserAccountException {
 
     /**
      * Constructs the exception with default message.

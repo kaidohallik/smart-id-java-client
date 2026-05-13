@@ -3,7 +3,19 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [3.2] - TBD
+## [3.3] - TBD (not released yet)
+
+### Changes
+
+- Aligned 404 Not Found handling with Smart-ID RP-API 3.2: custom status codes `471` and `472` are no longer returned by the server (they have been folded into `404` with RFC 9457 problem-details bodies).
+  - Removed `NoSuitableAccountOfRequestedTypeFoundException` (previously thrown on `471`).
+  - Removed `PersonShouldViewSmartIdPortalException` (previously thrown on `472`).
+  - Re-parented `DocumentUnusableException` directly to `UserAccountException` (it previously extended the removed `PersonShouldViewSmartIdPortalException`).
+- Added `ee.sk.smartid.rest.dao.ProblemDetails` modeling the RFC 9457 problem-details payload (`type`, `title`, `status`, `detail`, `instance`, `errors[]`).
+- Extended `UserAccountNotFoundException` with a new constructor `UserAccountNotFoundException(ProblemDetails)` and a `getProblemDetails()` accessor so callers can inspect the server-provided error code (e.g. `NO_SUITABLE_ACCOUNT_FOUND`) and detail text returned with the 404. The no-arg constructor is preserved for backward compatibility.
+- `SmartIdRestConnector` now parses the 404 problem-details body (`application/problem+json`) and attaches it to the thrown `UserAccountNotFoundException`. Unparseable bodies are tolerated and result in an exception with `null` problem details.
+
+## [3.2] - 2026-03-18
 
 ### Changes
 

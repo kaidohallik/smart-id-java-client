@@ -4,7 +4,7 @@ package ee.sk.smartid;
  * #%L
  * Smart ID sample Java client
  * %%
- * Copyright (C) 2018 - 2025 SK ID Solutions AS
+ * Copyright (C) 2018 - 2026 SK ID Solutions AS
  * %%
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -42,6 +42,9 @@ import java.net.URL;
 import java.nio.file.Files;
 
 public class SmartIdRestServiceStubs {
+
+    public static final String NO_SUITABLE_ACCOUNT_FOUND_CODE = "NO_SUITABLE_ACCOUNT_FOUND";
+    public static final String NO_SUITABLE_ACCOUNT_FOUND_DETAIL = "No suitable account of requested type found, but user has some other accounts";
 
     public static void stubNotFoundResponse(String urlEquals) {
         stubFor(get(urlEqualTo(urlEquals))
@@ -137,6 +140,67 @@ public class SmartIdRestServiceStubs {
                         .withStatus(errorStatus)
                         .withHeader("Content-Type", "application/json")
                         .withBody("")));
+    }
+
+    public static void stubNoSuitableAccountFoundResponse(String url, String requestFile) {
+        stubFor(post(urlEqualTo(url))
+                .withHeader("Accept", equalTo("application/json"))
+                .withRequestBody(equalToJson(readFileBody(requestFile), true, true))
+                .willReturn(aResponse()
+                        .withStatus(404)
+                        .withHeader("Content-Type", "application/problem+json")
+                        .withBody(noSuitableAccountFoundProblemDetailsBody())));
+    }
+
+    public static void stubPostNoSuitableAccountFoundResponse(String url) {
+        stubFor(post(urlEqualTo(url))
+                .withHeader("Accept", equalTo("application/json"))
+                .willReturn(aResponse()
+                        .withStatus(404)
+                        .withHeader("Content-Type", "application/problem+json")
+                        .withBody(noSuitableAccountFoundProblemDetailsBody())));
+    }
+
+    public static void stubPlainProblemDetailsResponse(String url, String requestFile) {
+        stubFor(post(urlEqualTo(url))
+                .withHeader("Accept", equalTo("application/json"))
+                .withRequestBody(equalToJson(readFileBody(requestFile), true, true))
+                .willReturn(aResponse()
+                        .withStatus(404)
+                        .withHeader("Content-Type", "application/problem+json")
+                        .withBody(plainProblemDetailsBody())));
+    }
+
+    public static void stubPostPlainProblemDetailsResponse(String url) {
+        stubFor(post(urlEqualTo(url))
+                .withHeader("Accept", equalTo("application/json"))
+                .willReturn(aResponse()
+                        .withStatus(404)
+                        .withHeader("Content-Type", "application/problem+json")
+                        .withBody(plainProblemDetailsBody())));
+    }
+
+    private static String noSuitableAccountFoundProblemDetailsBody() {
+        return """
+                {
+                  "type": "about:blank",
+                  "title": "Not Found",
+                  "status": 404,
+                  "detail": "Not Found",
+                  "instance": "/task-id/tdgx2dj9cfumh8",
+                  "errors": [{"code": "%s", "detail": "%s"}]
+                }""".formatted(SmartIdRestServiceStubs.NO_SUITABLE_ACCOUNT_FOUND_CODE, SmartIdRestServiceStubs.NO_SUITABLE_ACCOUNT_FOUND_DETAIL);
+    }
+
+    private static String plainProblemDetailsBody() {
+        return """
+                {
+                  "type": "about:blank",
+                  "title": "Not Found",
+                  "status": 404,
+                  "detail": "Not Found",
+                  "instance": "/task-id/tdgx2dj9cfumh8"
+                }""";
     }
 
     private static String readFileBody(String fileName) {

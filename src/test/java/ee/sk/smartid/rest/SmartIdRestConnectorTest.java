@@ -4,7 +4,7 @@ package ee.sk.smartid.rest;
  * #%L
  * Smart ID sample Java client
  * %%
- * Copyright (C) 2018 - 2025 SK ID Solutions AS
+ * Copyright (C) 2018 - 2026 SK ID Solutions AS
  * %%
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,16 +30,24 @@ import static com.github.tomakehurst.wiremock.client.WireMock.containing;
 import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.verify;
+import static ee.sk.smartid.SmartIdRestServiceStubs.NO_SUITABLE_ACCOUNT_FOUND_CODE;
+import static ee.sk.smartid.SmartIdRestServiceStubs.NO_SUITABLE_ACCOUNT_FOUND_DETAIL;
+import static ee.sk.smartid.SmartIdRestServiceStubs.stubNoSuitableAccountFoundResponse;
 import static ee.sk.smartid.SmartIdRestServiceStubs.stubNotFoundResponse;
+import static ee.sk.smartid.SmartIdRestServiceStubs.stubPlainProblemDetailsResponse;
 import static ee.sk.smartid.SmartIdRestServiceStubs.stubPostErrorResponse;
+import static ee.sk.smartid.SmartIdRestServiceStubs.stubPostNoSuitableAccountFoundResponse;
+import static ee.sk.smartid.SmartIdRestServiceStubs.stubPostPlainProblemDetailsResponse;
 import static ee.sk.smartid.SmartIdRestServiceStubs.stubPostRequestWithResponse;
 import static ee.sk.smartid.SmartIdRestServiceStubs.stubRequestWithResponse;
 import static ee.sk.smartid.SmartIdRestServiceStubs.stubStrictRequestWithResponse;
+
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.StringStartsWith.startsWith;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -53,6 +61,7 @@ import org.bouncycastle.util.encoders.Base64;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
 
 import com.github.tomakehurst.wiremock.client.WireMock;
 import com.github.tomakehurst.wiremock.junit5.WireMockTest;
@@ -66,8 +75,6 @@ import ee.sk.smartid.exception.SessionNotFoundException;
 import ee.sk.smartid.exception.permanent.RelyingPartyAccountConfigurationException;
 import ee.sk.smartid.exception.permanent.ServerMaintenanceException;
 import ee.sk.smartid.exception.permanent.SmartIdClientException;
-import ee.sk.smartid.exception.useraccount.NoSuitableAccountOfRequestedTypeFoundException;
-import ee.sk.smartid.exception.useraccount.PersonShouldViewSmartIdPortalException;
 import ee.sk.smartid.exception.useraccount.UserAccountNotFoundException;
 import ee.sk.smartid.rest.dao.AcspV2SignatureProtocolParameters;
 import ee.sk.smartid.rest.dao.CertificateByDocumentNumberRequest;
@@ -423,18 +430,16 @@ class SmartIdRestConnectorTest {
 
         @Test
         void initDeviceLinkAuthentication_suitableAccountNotFound_throwException() {
-            SmartIdRestServiceStubs.stubErrorResponse(AUTHENTICATION_WITH_PERSON_CODE_PATH, "requests/auth/device-link/device-link-authentication-session-request-qr-code.json", 471);
+            stubNoSuitableAccountFoundResponse(AUTHENTICATION_WITH_PERSON_CODE_PATH, "requests/auth/device-link/device-link-authentication-session-request-qr-code.json");
 
-            assertThrows(NoSuitableAccountOfRequestedTypeFoundException.class,
-                    () -> connector.initDeviceLinkAuthentication(toQrAuthenticationSessionRequest(), SEMANTICS_IDENTIFIER));
+            assertNoSuitableAccountFound(() -> connector.initDeviceLinkAuthentication(toQrAuthenticationSessionRequest(), SEMANTICS_IDENTIFIER));
         }
 
         @Test
         void initDeviceLinkAuthentication_issueWithUserAccount_throwException() {
-            SmartIdRestServiceStubs.stubErrorResponse(AUTHENTICATION_WITH_PERSON_CODE_PATH, "requests/auth/device-link/device-link-authentication-session-request-qr-code.json", 472);
+            stubPlainProblemDetailsResponse(AUTHENTICATION_WITH_PERSON_CODE_PATH, "requests/auth/device-link/device-link-authentication-session-request-qr-code.json");
 
-            assertThrows(PersonShouldViewSmartIdPortalException.class,
-                    () -> connector.initDeviceLinkAuthentication(toQrAuthenticationSessionRequest(), SEMANTICS_IDENTIFIER));
+            assertPlainAccountNotFound(() -> connector.initDeviceLinkAuthentication(toQrAuthenticationSessionRequest(), SEMANTICS_IDENTIFIER));
         }
 
         @Test
@@ -515,18 +520,16 @@ class SmartIdRestConnectorTest {
 
         @Test
         void initDeviceLinkAuthentication_suitableAccountNotFound_throwException() {
-            SmartIdRestServiceStubs.stubErrorResponse(AUTHENTICATION_WITH_DOCUMENT_NR_PATH, "requests/auth/device-link/device-link-authentication-session-request-qr-code.json", 471);
+            stubNoSuitableAccountFoundResponse(AUTHENTICATION_WITH_DOCUMENT_NR_PATH, "requests/auth/device-link/device-link-authentication-session-request-qr-code.json");
 
-            assertThrows(NoSuitableAccountOfRequestedTypeFoundException.class,
-                    () -> connector.initDeviceLinkAuthentication(toDeviceLinkAuthenticationSessionRequest(null, null), DOCUMENT_NUMBER));
+            assertNoSuitableAccountFound(() -> connector.initDeviceLinkAuthentication(toDeviceLinkAuthenticationSessionRequest(null, null), DOCUMENT_NUMBER));
         }
 
         @Test
         void initDeviceLinkAuthentication_issueWithUserAccount_throwException() {
-            SmartIdRestServiceStubs.stubErrorResponse(AUTHENTICATION_WITH_DOCUMENT_NR_PATH, "requests/auth/device-link/device-link-authentication-session-request-qr-code.json", 472);
+            stubPlainProblemDetailsResponse(AUTHENTICATION_WITH_DOCUMENT_NR_PATH, "requests/auth/device-link/device-link-authentication-session-request-qr-code.json");
 
-            assertThrows(PersonShouldViewSmartIdPortalException.class,
-                    () -> connector.initDeviceLinkAuthentication(toDeviceLinkAuthenticationSessionRequest(null, null), DOCUMENT_NUMBER));
+            assertPlainAccountNotFound(() -> connector.initDeviceLinkAuthentication(toDeviceLinkAuthenticationSessionRequest(null, null), DOCUMENT_NUMBER));
         }
 
         @Test
@@ -619,18 +622,16 @@ class SmartIdRestConnectorTest {
 
         @Test
         void initAnonymousDeviceLinkAuthentication_suitableAccountNotFound_throwException() {
-            SmartIdRestServiceStubs.stubErrorResponse(ANONYMOUS_AUTHENTICATION_PATH, "requests/auth/device-link/device-link-authentication-session-request-qr-code.json", 471);
+            stubNoSuitableAccountFoundResponse(ANONYMOUS_AUTHENTICATION_PATH, "requests/auth/device-link/device-link-authentication-session-request-qr-code.json");
 
-            assertThrows(NoSuitableAccountOfRequestedTypeFoundException.class,
-                    () -> connector.initAnonymousDeviceLinkAuthentication(toDeviceLinkAuthenticationSessionRequest(null, null)));
+            assertNoSuitableAccountFound(() -> connector.initAnonymousDeviceLinkAuthentication(toDeviceLinkAuthenticationSessionRequest(null, null)));
         }
 
         @Test
         void initAnonymousDeviceLinkAuthentication_issueWithUserAccount_throwException() {
-            SmartIdRestServiceStubs.stubErrorResponse(ANONYMOUS_AUTHENTICATION_PATH, "requests/auth/device-link/device-link-authentication-session-request-qr-code.json", 472);
+            stubPlainProblemDetailsResponse(ANONYMOUS_AUTHENTICATION_PATH, "requests/auth/device-link/device-link-authentication-session-request-qr-code.json");
 
-            assertThrows(PersonShouldViewSmartIdPortalException.class,
-                    () -> connector.initAnonymousDeviceLinkAuthentication(toDeviceLinkAuthenticationSessionRequest(null, null)));
+            assertPlainAccountNotFound(() -> connector.initAnonymousDeviceLinkAuthentication(toDeviceLinkAuthenticationSessionRequest(null, null)));
         }
 
         @Test
@@ -722,18 +723,16 @@ class SmartIdRestConnectorTest {
 
         @Test
         void initNotificationAuthentication_suitableAccountNotFound_throwException() {
-            SmartIdRestServiceStubs.stubErrorResponse(AUTHENTICATION_WITH_PERSON_CODE_PATH, "requests/auth/notification/notification-authentication-session-request-only-required-fields.json", 471);
+            stubNoSuitableAccountFoundResponse(AUTHENTICATION_WITH_PERSON_CODE_PATH, "requests/auth/notification/notification-authentication-session-request-only-required-fields.json");
 
-            assertThrows(NoSuitableAccountOfRequestedTypeFoundException.class,
-                    () -> connector.initNotificationAuthentication(toNotificationAuthenticationSessionRequest(null, null), SEMANTICS_IDENTIFIER));
+            assertNoSuitableAccountFound(() -> connector.initNotificationAuthentication(toNotificationAuthenticationSessionRequest(null, null), SEMANTICS_IDENTIFIER));
         }
 
         @Test
         void initNotificationAuthentication_issueWithUserAccount_throwException() {
-            SmartIdRestServiceStubs.stubErrorResponse(AUTHENTICATION_WITH_PERSON_CODE_PATH, "requests/auth/notification/notification-authentication-session-request-only-required-fields.json", 472);
+            stubPlainProblemDetailsResponse(AUTHENTICATION_WITH_PERSON_CODE_PATH, "requests/auth/notification/notification-authentication-session-request-only-required-fields.json");
 
-            assertThrows(PersonShouldViewSmartIdPortalException.class,
-                    () -> connector.initNotificationAuthentication(toNotificationAuthenticationSessionRequest(null, null), SEMANTICS_IDENTIFIER));
+            assertPlainAccountNotFound(() -> connector.initNotificationAuthentication(toNotificationAuthenticationSessionRequest(null, null), SEMANTICS_IDENTIFIER));
         }
 
         @Test
@@ -834,18 +833,16 @@ class SmartIdRestConnectorTest {
 
         @Test
         void initNotificationAuthentication_suitableAccountNotFound_throwException() {
-            SmartIdRestServiceStubs.stubErrorResponse(AUTHENTICATION_WITH_DOCUMENT_NR_PATH, "requests/auth/notification/notification-authentication-session-request-only-required-fields.json", 471);
+            stubNoSuitableAccountFoundResponse(AUTHENTICATION_WITH_DOCUMENT_NR_PATH, "requests/auth/notification/notification-authentication-session-request-only-required-fields.json");
 
-            assertThrows(NoSuitableAccountOfRequestedTypeFoundException.class,
-                    () -> connector.initNotificationAuthentication(toNotificationAuthenticationSessionRequest(null, null), DOCUMENT_NUMBER));
+            assertNoSuitableAccountFound(() -> connector.initNotificationAuthentication(toNotificationAuthenticationSessionRequest(null, null), DOCUMENT_NUMBER));
         }
 
         @Test
         void initNotificationAuthentication_issueWithUserAccount_throwException() {
-            SmartIdRestServiceStubs.stubErrorResponse(AUTHENTICATION_WITH_DOCUMENT_NR_PATH, "requests/auth/notification/notification-authentication-session-request-only-required-fields.json", 472);
+            stubPlainProblemDetailsResponse(AUTHENTICATION_WITH_DOCUMENT_NR_PATH, "requests/auth/notification/notification-authentication-session-request-only-required-fields.json");
 
-            assertThrows(PersonShouldViewSmartIdPortalException.class,
-                    () -> connector.initNotificationAuthentication(toNotificationAuthenticationSessionRequest(null, null), DOCUMENT_NUMBER));
+            assertPlainAccountNotFound(() -> connector.initNotificationAuthentication(toNotificationAuthenticationSessionRequest(null, null), DOCUMENT_NUMBER));
         }
 
         @Test
@@ -935,21 +932,21 @@ class SmartIdRestConnectorTest {
         }
 
         @Test
-        void initDeviceLinkCertificateChoice_throwsNoSuitableAccountOfRequestedTypeFoundException() {
-            stubPostErrorResponse(ANONYMOUS_CERTIFICATE_CHOICE_PATH, 471);
+        void initDeviceLinkCertificateChoice_throwsUserAccountNotFoundException_withNoSuitableAccountFoundCode() {
+            stubPostNoSuitableAccountFoundResponse(ANONYMOUS_CERTIFICATE_CHOICE_PATH);
 
             DeviceLinkCertificateChoiceSessionRequest request = toCertificateChoiceSessionRequest();
 
-            assertThrows(NoSuitableAccountOfRequestedTypeFoundException.class, () -> connector.initDeviceLinkCertificateChoice(request));
+            assertNoSuitableAccountFound(() -> connector.initDeviceLinkCertificateChoice(request));
         }
 
         @Test
-        void initDeviceLinkCertificateChoice_throwsPersonShouldViewSmartIdPortalException() {
-            stubPostErrorResponse(ANONYMOUS_CERTIFICATE_CHOICE_PATH, 472);
+        void initDeviceLinkCertificateChoice_throwsUserAccountNotFoundException_plainNotFound() {
+            stubPostPlainProblemDetailsResponse(ANONYMOUS_CERTIFICATE_CHOICE_PATH);
 
             DeviceLinkCertificateChoiceSessionRequest request = toCertificateChoiceSessionRequest();
 
-            assertThrows(PersonShouldViewSmartIdPortalException.class, () -> connector.initDeviceLinkCertificateChoice(request));
+            assertPlainAccountNotFound(() -> connector.initDeviceLinkCertificateChoice(request));
         }
 
         @Test
@@ -1055,17 +1052,16 @@ class SmartIdRestConnectorTest {
 
         @Test
         void initLinkedNotificationSignature_suitableAccountNotFound_throwException() {
-            SmartIdRestServiceStubs.stubErrorResponse(LINKED_SIGNATURE_PATH, "requests/sign/linked/signature/linked-notification-signature-session-request-all-fields.json", 471);
+            stubNoSuitableAccountFoundResponse(LINKED_SIGNATURE_PATH, "requests/sign/linked/signature/linked-notification-signature-session-request-all-fields.json");
 
-            assertThrows(NoSuitableAccountOfRequestedTypeFoundException.class,
-                    () -> connector.initLinkedNotificationSignature(toFullLinkedSignatureSessionRequest(), DOCUMENT_NUMBER));
+            assertNoSuitableAccountFound(() -> connector.initLinkedNotificationSignature(toFullLinkedSignatureSessionRequest(), DOCUMENT_NUMBER));
         }
 
         @Test
         void initLinkedNotificationSignature_issueWithUserAccount_throwException() {
-            SmartIdRestServiceStubs.stubErrorResponse(LINKED_SIGNATURE_PATH, "requests/sign/linked/signature/linked-notification-signature-session-request-all-fields.json", 472);
+            stubPlainProblemDetailsResponse(LINKED_SIGNATURE_PATH, "requests/sign/linked/signature/linked-notification-signature-session-request-all-fields.json");
 
-            assertThrows(PersonShouldViewSmartIdPortalException.class, () -> {
+            assertPlainAccountNotFound(() -> {
                 var linkedSignatureSessionRequest = toLinkedSignatureSessionRequest(CertificateLevel.QUALIFIED, "cmFuZG9tTm9uY2U=", new RequestProperties(true));
                 connector.initLinkedNotificationSignature(linkedSignatureSessionRequest, DOCUMENT_NUMBER);
             });
@@ -1227,7 +1223,7 @@ class SmartIdRestConnectorTest {
 
         @Test
         void initCertificateChoice_suitableAccountNotFound_throwException() {
-            SmartIdRestServiceStubs.stubPostErrorResponse(CERTIFICATE_CHOICE_WITH_PERSON_CODE_PATH, 471);
+            stubPostNoSuitableAccountFoundResponse(CERTIFICATE_CHOICE_WITH_PERSON_CODE_PATH);
 
             NotificationCertificateChoiceSessionRequest request = new NotificationCertificateChoiceSessionRequest(
                     "00000000-0000-4000-8000-000000000000",
@@ -1236,12 +1232,12 @@ class SmartIdRestConnectorTest {
                     null,
                     null,
                     null);
-            assertThrows(NoSuitableAccountOfRequestedTypeFoundException.class, () -> connector.initNotificationCertificateChoice(request, SEMANTICS_IDENTIFIER));
+            assertNoSuitableAccountFound(() -> connector.initNotificationCertificateChoice(request, SEMANTICS_IDENTIFIER));
         }
 
         @Test
         void initCertificateChoice_userShouldCheckPortal_throwException() {
-            SmartIdRestServiceStubs.stubPostErrorResponse(CERTIFICATE_CHOICE_WITH_PERSON_CODE_PATH, 472);
+            stubPostPlainProblemDetailsResponse(CERTIFICATE_CHOICE_WITH_PERSON_CODE_PATH);
 
             NotificationCertificateChoiceSessionRequest request = new NotificationCertificateChoiceSessionRequest(
                     "00000000-0000-4000-8000-000000000000",
@@ -1250,7 +1246,7 @@ class SmartIdRestConnectorTest {
                     null,
                     null,
                     null);
-            assertThrows(PersonShouldViewSmartIdPortalException.class, () -> connector.initNotificationCertificateChoice(request, SEMANTICS_IDENTIFIER));
+            assertPlainAccountNotFound(() -> connector.initNotificationCertificateChoice(request, SEMANTICS_IDENTIFIER));
         }
 
         @Test
@@ -1418,21 +1414,21 @@ class SmartIdRestConnectorTest {
         }
 
         @Test
-        void initDeviceLinkSignature_throwsNoSuitableAccountOfRequestedTypeFoundException() {
-            stubPostErrorResponse(SIGNATURE_WITH_PERSON_CODE_PATH, 471);
+        void initDeviceLinkSignature_throwsUserAccountNotFoundException_withNoSuitableAccountFoundCode() {
+            stubPostNoSuitableAccountFoundResponse(SIGNATURE_WITH_PERSON_CODE_PATH);
 
             DeviceLinkSignatureSessionRequest request = createSignatureSessionRequest();
 
-            assertThrows(NoSuitableAccountOfRequestedTypeFoundException.class, () -> connector.initDeviceLinkSignature(request, SEMANTICS_IDENTIFIER));
+            assertNoSuitableAccountFound(() -> connector.initDeviceLinkSignature(request, SEMANTICS_IDENTIFIER));
         }
 
         @Test
-        void initDeviceLinkSignature_throwsPersonShouldViewSmartIdPortalException() {
-            stubPostErrorResponse(SIGNATURE_WITH_PERSON_CODE_PATH, 472);
+        void initDeviceLinkSignature_throwsUserAccountNotFoundException_plainNotFound() {
+            stubPostPlainProblemDetailsResponse(SIGNATURE_WITH_PERSON_CODE_PATH);
 
             DeviceLinkSignatureSessionRequest request = createSignatureSessionRequest();
 
-            assertThrows(PersonShouldViewSmartIdPortalException.class, () -> connector.initDeviceLinkSignature(request, SEMANTICS_IDENTIFIER));
+            assertPlainAccountNotFound(() -> connector.initDeviceLinkSignature(request, SEMANTICS_IDENTIFIER));
         }
 
         @Test
@@ -1525,21 +1521,19 @@ class SmartIdRestConnectorTest {
         }
 
         @Test
-        void initNotificationSignature_throwsNoSuitableAccountOfRequestedTypeFoundException() {
-            SmartIdRestServiceStubs.stubPostErrorResponse(SIGNATURE_WITH_PERSON_CODE_PATH, 471);
+        void initNotificationSignature_throwsUserAccountNotFoundException_withNoSuitableAccountFoundCode() {
+            stubPostNoSuitableAccountFoundResponse(SIGNATURE_WITH_PERSON_CODE_PATH);
             NotificationSignatureSessionRequest request = toNotificationSignatureSessionRequest();
 
-            assertThrows(NoSuitableAccountOfRequestedTypeFoundException.class, () -> {
-                connector.initNotificationSignature(request, SEMANTICS_IDENTIFIER);
-            });
+            assertNoSuitableAccountFound(() -> connector.initNotificationSignature(request, SEMANTICS_IDENTIFIER));
         }
 
         @Test
-        void initNotificationSignature_throwsPersonShouldViewSmartIdPortalException() {
-            SmartIdRestServiceStubs.stubPostErrorResponse(SIGNATURE_WITH_PERSON_CODE_PATH, 472);
+        void initNotificationSignature_throwsUserAccountNotFoundException_plainNotFound() {
+            stubPostPlainProblemDetailsResponse(SIGNATURE_WITH_PERSON_CODE_PATH);
             NotificationSignatureSessionRequest request = toNotificationSignatureSessionRequest();
 
-            assertThrows(PersonShouldViewSmartIdPortalException.class, () -> connector.initNotificationSignature(request, SEMANTICS_IDENTIFIER));
+            assertPlainAccountNotFound(() -> connector.initNotificationSignature(request, SEMANTICS_IDENTIFIER));
         }
 
         @Test
@@ -1635,19 +1629,19 @@ class SmartIdRestConnectorTest {
         }
 
         @Test
-        void initNotificationSignature_throwsNoSuitableAccountOfRequestedTypeFoundException() {
-            SmartIdRestServiceStubs.stubPostErrorResponse(SIGNATURE_WITH_DOCUMENT_NUMBER_PATH, 471);
+        void initNotificationSignature_throwsUserAccountNotFoundException_withNoSuitableAccountFoundCode() {
+            stubPostNoSuitableAccountFoundResponse(SIGNATURE_WITH_DOCUMENT_NUMBER_PATH);
             NotificationSignatureSessionRequest request = toNotificationSignatureSessionRequest();
 
-            assertThrows(NoSuitableAccountOfRequestedTypeFoundException.class, () -> connector.initNotificationSignature(request, DOCUMENT_NUMBER));
+            assertNoSuitableAccountFound(() -> connector.initNotificationSignature(request, DOCUMENT_NUMBER));
         }
 
         @Test
-        void initNotificationSignature_throwsPersonShouldViewSmartIdPortalException() {
-            SmartIdRestServiceStubs.stubPostErrorResponse(SIGNATURE_WITH_DOCUMENT_NUMBER_PATH, 472);
+        void initNotificationSignature_throwsUserAccountNotFoundException_plainNotFound() {
+            stubPostPlainProblemDetailsResponse(SIGNATURE_WITH_DOCUMENT_NUMBER_PATH);
             NotificationSignatureSessionRequest request = toNotificationSignatureSessionRequest();
 
-            assertThrows(PersonShouldViewSmartIdPortalException.class, () -> connector.initNotificationSignature(request, DOCUMENT_NUMBER));
+            assertPlainAccountNotFound(() -> connector.initNotificationSignature(request, DOCUMENT_NUMBER));
         }
 
         @Test
@@ -1775,5 +1769,22 @@ class SmartIdRestConnectorTest {
         assertNotNull(verificationCode);
         assertNotNull(verificationCode.type());
         assertNotNull(verificationCode.value());
+    }
+
+    private static void assertNoSuitableAccountFound(Executable executable) {
+        var ex = assertThrows(UserAccountNotFoundException.class, executable);
+        assertNotNull(ex.getProblemDetails());
+        var errors = ex.getProblemDetails().getErrors();
+        assertNotNull(errors);
+        assertEquals(1, errors.size());
+        var error = errors.get(0);
+        assertEquals(NO_SUITABLE_ACCOUNT_FOUND_CODE, error.getCode());
+        assertEquals(NO_SUITABLE_ACCOUNT_FOUND_DETAIL, error.getDetail());
+    }
+
+    private static void assertPlainAccountNotFound(Executable executable) {
+        var ex = assertThrows(UserAccountNotFoundException.class, executable);
+        assertNotNull(ex.getProblemDetails());
+        assertNull(ex.getProblemDetails().getErrors());
     }
 }

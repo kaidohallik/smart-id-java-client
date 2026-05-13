@@ -4,7 +4,7 @@ package ee.sk.smartid.exception.useraccount;
  * #%L
  * Smart ID sample Java client
  * %%
- * Copyright (C) 2018 - 2025 SK ID Solutions AS
+ * Copyright (C) 2018 - 2026 SK ID Solutions AS
  * %%
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,17 +26,53 @@ package ee.sk.smartid.exception.useraccount;
  * #L%
  */
 
+import java.util.stream.Collectors;
+
 import ee.sk.smartid.exception.UserAccountException;
+import ee.sk.smartid.rest.dao.ProblemDetails;
 
 /**
  * Thrown when user account does not exist with the given identifier or document number.
+ * <p>
+ * When the server returns an RFC 9457 problem-details payload along with the 404 response,
+ * the parsed {@link ProblemDetails} is exposed via {@link #getProblemDetails()} so callers
+ * can inspect the error codes (e.g. {@code NO_SUITABLE_ACCOUNT_FOUND}) returned by the server.
  */
 public class UserAccountNotFoundException extends UserAccountException {
 
+    private final transient ProblemDetails problemDetails;
+
     /**
-     * Constructs the exception with message.
+     * Constructs the exception without problem details.
      */
     public UserAccountNotFoundException() {
-        super("User account not found");
+        this(null);
+    }
+
+    /**
+     * Constructs the exception with the problem details parsed from the server response.
+     *
+     * @param problemDetails problem details parsed from the response body, or {@code null} if unavailable.
+     */
+    public UserAccountNotFoundException(ProblemDetails problemDetails) {
+        super(buildMessage(problemDetails));
+        this.problemDetails = problemDetails;
+    }
+
+    /**
+     * @return problem details from the server response, or {@code null} if the response had no parseable payload.
+     */
+    public ProblemDetails getProblemDetails() {
+        return problemDetails;
+    }
+
+    private static String buildMessage(ProblemDetails problemDetails) {
+        if (problemDetails == null || problemDetails.getErrors() == null || problemDetails.getErrors().isEmpty()) {
+            return "User account not found";
+        }
+        String errors = problemDetails.getErrors().stream()
+                .map(error -> error.getCode() + " - " + error.getDetail())
+                .collect(Collectors.joining("; "));
+        return "User account not found: " + errors;
     }
 }

@@ -4,6 +4,39 @@ Library v3.1 supports only Smart-ID v3 API.
 All the previous v2 related code has been removed and all the code necessary for Smart-ID API v3 is under package smartid. 
 Some classes could also be used in v3 and for those classes the package did not change.
 
+# Migrating from library v3.2 to v3.3
+
+This release aligns 404 Not Found handling with Smart-ID RP-API 3.2: the server no longer uses the custom status codes `471` and `472` - those cases are now returned as `404` with an [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457.html) problem-details body. The client has been adjusted accordingly.
+
+The following exception classes have been removed:
+- `ee.sk.smartid.exception.useraccount.NoSuitableAccountOfRequestedTypeFoundException` (previously thrown on HTTP 471)
+- `ee.sk.smartid.exception.useraccount.PersonShouldViewSmartIdPortalException` (previously thrown on HTTP 472)
+
+Both former cases now throw `UserAccountNotFoundException`. The parsed problem-details payload - when present - is exposed via the new accessor `UserAccountNotFoundException.getProblemDetails()`.
+
+Required changes:
+- Replace any `catch (NoSuitableAccountOfRequestedTypeFoundException e)` with `catch (UserAccountNotFoundException e)`, then inspect `e.getProblemDetails()` for the error code (e.g. `NO_SUITABLE_ACCOUNT_FOUND`) when you need to distinguish the former 471 case.
+- Replace any `catch (PersonShouldViewSmartIdPortalException e)` with `catch (UserAccountNotFoundException e)`. The former 472 case folds into a plain 404 with no `errors` array - `e.getProblemDetails().getErrors()` will be `null`.
+- If you previously caught `PersonShouldViewSmartIdPortalException` to also handle `DocumentUnusableException`, note that `DocumentUnusableException` now extends `UserAccountException` directly. Catch `DocumentUnusableException` (or its parent `UserAccountException`) explicitly.
+
+Example:
+
+```java
+try {
+    connector.initDeviceLinkAuthentication(request, semanticsIdentifier);
+} catch (UserAccountNotFoundException e) {
+    ProblemDetails problemDetails = e.getProblemDetails();
+    if (problemDetails != null && problemDetails.getErrors() != null && !problemDetails.getErrors().isEmpty()) {
+        String code = problemDetails.getErrors().get(0).getCode();
+        if ("NO_SUITABLE_ACCOUNT_FOUND".equals(code)) {
+            // handle former 471 case
+        }
+    } else {
+        // plain 404 - former 472 case or generic "account not found"
+    }
+}
+```
+
 # Migrating from library v3.1 to v3.2
 
 For signing flows are restored legacy RSASSA-PKCS#1 v1.5 algorithms (`SHA256_WITH_RSA_ENCRYPTION`, `SHA384_WITH_RSA_ENCRYPTION`, `SHA512_WITH_RSA_ENCRYPTION`) which are compatible with DigiDoc4j's signing support.

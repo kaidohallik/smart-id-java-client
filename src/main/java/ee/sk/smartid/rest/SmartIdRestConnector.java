@@ -4,7 +4,7 @@ package ee.sk.smartid.rest;
  * #%L
  * Smart ID sample Java client
  * %%
- * Copyright (C) 2018 - 2025 SK ID Solutions AS
+ * Copyright (C) 2018 - 2026 SK ID Solutions AS
  * %%
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -41,8 +41,6 @@ import ee.sk.smartid.exception.SessionNotFoundException;
 import ee.sk.smartid.exception.permanent.RelyingPartyAccountConfigurationException;
 import ee.sk.smartid.exception.permanent.ServerMaintenanceException;
 import ee.sk.smartid.exception.permanent.SmartIdClientException;
-import ee.sk.smartid.exception.useraccount.NoSuitableAccountOfRequestedTypeFoundException;
-import ee.sk.smartid.exception.useraccount.PersonShouldViewSmartIdPortalException;
 import ee.sk.smartid.exception.useraccount.UserAccountNotFoundException;
 import ee.sk.smartid.rest.dao.CertificateByDocumentNumberRequest;
 import ee.sk.smartid.rest.dao.CertificateResponse;
@@ -58,6 +56,7 @@ import ee.sk.smartid.rest.dao.NotificationCertificateChoiceSessionRequest;
 import ee.sk.smartid.rest.dao.NotificationCertificateChoiceSessionResponse;
 import ee.sk.smartid.rest.dao.NotificationSignatureSessionRequest;
 import ee.sk.smartid.rest.dao.NotificationSignatureSessionResponse;
+import ee.sk.smartid.rest.dao.ProblemDetails;
 import ee.sk.smartid.rest.dao.SemanticsIdentifier;
 import ee.sk.smartid.rest.dao.SessionStatus;
 import ee.sk.smartid.rest.dao.SessionStatusRequest;
@@ -73,6 +72,7 @@ import jakarta.ws.rs.client.Entity;
 import jakarta.ws.rs.client.Invocation;
 import jakarta.ws.rs.core.Configuration;
 import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.UriBuilder;
 
 /**
@@ -363,21 +363,14 @@ public class SmartIdRestConnector implements SmartIdConnector {
         } catch (BadRequestException ex) {
             logger.warn("Request is invalid for URI {}", uri, ex);
             throw new SmartIdClientException("Server refused the request", ex);
-        } catch (NotFoundException e) {
-            logger.warn("User account not found for URI " + uri, e);
-            throw new UserAccountNotFoundException();
+        } catch (NotFoundException ex) {
+            ProblemDetails problemDetails = readProblemDetails(ex);
+            logger.warn("User account not found for URI {} - problem details: {}", uri, problemDetails, ex);
+            throw new UserAccountNotFoundException(problemDetails);
         } catch (ForbiddenException ex) {
             logger.warn("No permission to issue the request", ex);
             throw new RelyingPartyAccountConfigurationException("No permission to issue the request", ex);
         } catch (ClientErrorException ex) {
-            if (ex.getResponse().getStatus() == 471) {
-                logger.warn("No suitable account of requested type found, but user has some other accounts.", ex);
-                throw new NoSuitableAccountOfRequestedTypeFoundException();
-            }
-            if (ex.getResponse().getStatus() == 472) {
-                logger.warn("Person should view Smart-ID app or Smart-ID self-service portal now.", ex);
-                throw new PersonShouldViewSmartIdPortalException();
-            }
             if (ex.getResponse().getStatus() == 480) {
                 logger.warn("Client-side API is too old and not supported anymore");
                 throw new SmartIdClientException("Client-side API is too old and not supported anymore");
@@ -389,6 +382,20 @@ public class SmartIdRestConnector implements SmartIdConnector {
                 throw new ServerMaintenanceException();
             }
             throw ex;
+        }
+    }
+
+    private ProblemDetails readProblemDetails(NotFoundException ex) {
+        Response response = ex.getResponse();
+        if (response == null || !response.hasEntity()) {
+            return null;
+        }
+        try {
+            response.bufferEntity();
+            return response.readEntity(ProblemDetails.class);
+        } catch (Exception parseError) {
+            logger.debug("Could not parse problem details from response", parseError);
+            return null;
         }
     }
 
